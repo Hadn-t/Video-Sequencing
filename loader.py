@@ -64,7 +64,7 @@ def extract_keypoints(results):
 
 # Setup Folders for Collection
 DATA_PATH = os.path.join('MP_Data')
-actions = np.array(['thanks', 'hello', 'iloveyou'])
+actions = np.array(['thanks', 'help', 'you-good'])
 no_sequences = 25
 sequence_length = 30
 
