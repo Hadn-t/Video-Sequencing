@@ -176,7 +176,7 @@ def main():
 
     # Initialize MediaPipe
     mp_holistic = mp.solutions.holistic
-    actions = np.array(['thanks', 'hello', 'iloveyou'])
+    actions = np.array(['thanks', 'help', 'you-good'])
 
     # Initialize detection variables
     sequence = []
