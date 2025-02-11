@@ -68,7 +68,7 @@ def real_time_detection():
     predictions = []
     threshold = 0.5
 
-    actions = np.array(['thanks', 'hello', 'iloveyou', 'please'])
+    actions = np.array(['thanks', 'help', 'you-good?', 'please'])
     colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245), (16, 66, 226)]
 
     model = load_model('action1.h5')
