@@ -68,10 +68,10 @@ def real_time_detection():
     predictions = []
     threshold = 0.5
 
-    actions = np.array(['thanks', 'hello', 'iloveyou'])
-    colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245)]
+    actions = np.array(['thanks', 'hello', 'iloveyou', 'please'])
+    colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245), (16, 66, 226)]
 
-    model = load_model('action.h5')
+    model = load_model('action1.h5')
 
     cap = cv2.VideoCapture(0)
     with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
