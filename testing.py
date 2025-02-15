@@ -29,10 +29,10 @@ def capture_frame():
     return frame
 
 
-def mediapipe_detection(image, model):
+def mediapipe_detection(image, holistic):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image.flags.writeable = False
-    results = model.process(image)
+    results = holistic.process(image)
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     return image, results
@@ -94,35 +94,40 @@ def real_time_detection():
 
     model = load_model('action1.h5')
 
-    while True:
-        # Capture frame using libcamera
-        frame = capture_frame()
+    # Create a Holistic object from mediapipe
+    with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+        while True:
+            # Capture frame using libcamera
+            frame = capture_frame()
 
-        if frame is None:
-            print("Failed to capture frame, exiting...")
-            break
+            if frame is None:
+                print("Failed to capture frame, exiting...")
+                break
 
-        # Make detections
-        image, results = mediapipe_detection(frame, holistic)
-        draw_styled_landmarks(image, results)
+            # Make detections
+            image, results = mediapipe_detection(frame, holistic)
+            draw_styled_landmarks(image, results)
 
-        # Prediction logic
-        keypoints = extract_keypoints(results)
-        sequence.append(keypoints)
-        sequence = sequence[-30:]
+            # Initialize `res` as a dummy value
+            res = np.zeros(len(actions))
 
-        if len(sequence) == 30:
-            res = model.predict(np.expand_dims(sequence, axis=0))[0]
-            predictions.append(np.argmax(res))
+            # Prediction logic
+            keypoints = extract_keypoints(results)
+            sequence.append(keypoints)
+            sequence = sequence[-30:]
 
-            # Viz logic
-            if np.unique(predictions[-10:])[0] == np.argmax(res):
-                if res[np.argmax(res)] > threshold:
-                    if len(sentence) > 0:
-                        if actions[np.argmax(res)] != sentence[-1]:
+            if len(sequence) == 30:
+                res = model.predict(np.expand_dims(sequence, axis=0))[0]
+                predictions.append(np.argmax(res))
+
+                # Viz logic
+                if np.unique(predictions[-10:])[0] == np.argmax(res):
+                    if res[np.argmax(res)] > threshold:
+                        if len(sentence) > 0:
+                            if actions[np.argmax(res)] != sentence[-1]:
+                                sentence.append(actions[np.argmax(res)])
+                        else:
                             sentence.append(actions[np.argmax(res)])
-                    else:
-                        sentence.append(actions[np.argmax(res)])
 
             if len(sentence) > 5:
                 sentence = sentence[-5:]
@@ -130,14 +135,14 @@ def real_time_detection():
             # Viz probabilities
             image = prob_viz(res, actions, image, colors)
 
-        cv2.rectangle(image, (0, 0), (640, 40), (245, 117, 16), -1)
-        cv2.putText(image, ' '.join(sentence), (3, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.rectangle(image, (0, 0), (640, 40), (245, 117, 16), -1)
+            cv2.putText(image, ' '.join(sentence), (3, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
-        cv2.imshow('OpenCV Feed', image)
+            cv2.imshow('OpenCV Feed', image)
 
-        if cv2.waitKey(10) & 0xFF == ord('q'):
-            break
+            if cv2.waitKey(10) & 0xFF == ord('q'):
+                break
 
     cv2.destroyAllWindows()
 
