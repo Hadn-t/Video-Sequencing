@@ -70,7 +70,7 @@ def real_time_detection():
     actions = np.array(['thanks', 'help', 'please'])
     colors = [(245, 117, 16), (16, 117, 245), (16, 66, 226)]
 
-    model = load_model('action3GRU.h5')
+    model = load_model('action4GRU.h5')
 
     # Initialize PiCamera2
     picam2 = Picamera2()
