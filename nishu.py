@@ -20,6 +20,7 @@ lcd = CharLCD(i2c_expander='PCF8574', address=0x27, port=1, cols=20, rows=4, dot
 GOOGLE_GEMINI_API_KEY = "AIzaSyDXI81MAhaf67v8YTo5CdMS1yC15LNgFWE"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_GEMINI_API_KEY}"
 
+
 def mediapipe_detection(image, model):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image.flags.writeable = False
@@ -111,89 +112,102 @@ def prob_viz(res, input_frame, colors):
 def real_time_detection():
     try:
         # Loading the model first to ensure it's available
-        model = load_model('action4GRU.h5')
-
+        model = load_model('extended_sign_language_model_v2.h5')
         sequence = []
         sentence = []
         predictions = []
         threshold = 0.5
 
-        # Clearing the file before writing onto it
-        with open('recognized_words.txt', 'w') as file:
-            file.write('') # Clears the file
+        # Clear the file with proper error handling
+        try:
+            with open('recognized_words.txt', 'w') as file:
+                file.write('')
+        except IOError as e:
+            print(f"Error clearing file: {str(e)}")
+            return
 
-        # Initializing the camera
+        # Initialize camera
         picam2 = Picamera2()
-        config = picam2.create_preview_configuration(main={"size": (640, 480),})
+        config = picam2.create_preview_configuration(main={"size": (480, 360)})
         picam2.configure(config)
         picam2.start()
 
         start_time = time.time()
         duration = 180
-        
-        tts_enngine = setup_tts()
+        tts_engine = setup_tts()
 
         with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
             while (time.time() - start_time) < duration:
                 try:
                     frame = picam2.capture_array()
                     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-
+                    
                     # Make detections
                     image, results = mediapipe_detection(frame, holistic)
                     draw_landmarks(image, results)
-
+                    
                     # Prediction logic
                     keypoints = extract_keypoints(results)
                     sequence.append(keypoints)
-
+                    
                     # Keep only last 30 frames
                     if len(sequence) > 30:
                         sequence = sequence[-30:]
-
+                    
                     if len(sequence) == 30:
                         # Convert sequence to numpy array and ensure correct shape
                         input_data = np.array(sequence)
                         if input_data.shape != (30, 864):
                             continue
-
+                            
                         res = model.predict(np.expand_dims(input_data, axis=0))[0]
                         predictions.append(np.argmax(res))
                         
-                        if np.unique(predictions[-10:])[0] == np.argmax(res):
-						 if res[np.argmax(res)] > threshold:
-						  if len(sentence) > 0:
-						   if acti[np.argmax(res)] != sentence[-1]:
-										sentence.append(actions[np.argmax(res)])
-										
-										with open('recognized_words.txt', 'a') as file:
-											file.write(f"{actions[np.argmax(res)]}")
-								else:
-									sentence.append(actions[np.argmax(res)])
-									with open('recognized_words.txt', 'a') as file:
-										file.write(f"{actions[np.argmax(res)]}");
-
-                        if len(sentence) > 5:
-                            sentence = sentence[-5:]
-
+                        # Check for consistent predictions
+                        if len(predictions) >= 10:
+                            recent_pred = predictions[-10:]
+                            if len(np.unique(recent_pred)) == 1 and res[np.argmax(res)] > threshold:
+                                predicted_word = actions[np.argmax(res)]
+                                
+                                # Only add word if it's different from the last one
+                                if not sentence or predicted_word != sentence[-1]:
+                                    sentence.append(predicted_word)
+                                    try:
+                                        with open('recognized_words.txt', 'a') as file:
+                                            file.write(f"{predicted_word}\n")  # Added newline for better readability
+                                    except IOError as e:
+                                        print(f"Error writing to file: {str(e)}")
+                                
+                                # Keep sentence at manageable length
+                                if len(sentence) > 5:
+                                    sentence = sentence[-5:]
+                        
                         image = prob_viz(res, image, colors)
-
-                    remaining_time = int(duration-(time.time() - start_time))
+                    
+                    # Display results
+                    remaining_time = int(duration - (time.time() - start_time))
                     cv2.rectangle(image, (0, 0), (640, 40), (245, 117, 16), -1)
-                    cv2.putText(image, f'{" ".join(sentence)} | Time left: {remaining_time}s', (7, 30),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-
+                    cv2.putText(image, 
+                              f'{" ".join(sentence)} | Time left: {remaining_time}s',
+                              (7, 30),
+                              cv2.FONT_HERSHEY_SIMPLEX,
+                              1,
+                              (255, 255, 255),
+                              2,
+                              cv2.LINE_AA)
+                    
                     cv2.imshow('ASL Detection', image)
-
+                    
+                    if cv2.waitKey(10) & 0xFF == ord('q'):
+                        break
+                        
                 except Exception as e:
                     print(f"Frame processing error: {str(e)}")
                     continue
-
-                if cv2.waitKey(10) & 0xFF == ord('q'):
-                    break
-
+                    
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Critical error: {str(e)}")
+        
     finally:
         picam2.stop()
         cv2.destroyAllWindows()
@@ -204,12 +218,14 @@ def setup_tts():
     engine.setProperty('volume', 0.9)
     return engine
 
+
 def speak_text(engine, text):
     try:
         engine.say(text)
         engine.runAndWait()
     except Exception as e:
         print(f"TTS Error: {str(e)}")
+
 
 def generate_sentence(words):
     # First, clean and deduplicate words while preserving order
@@ -294,6 +310,7 @@ def display_on_lcd(text):
         # Clearing the LCD when done
         lcd.clear()
 
+
 def screen_sound():
     try:
         # Initialize text to speech
@@ -326,10 +343,14 @@ def screen_sound():
         # Clear the LCD when done
         lcd.clear()
 
+
 if __name__ == "__main__":
     # Keep your original variables
-    actions = np.array(['thanks', 'help', 'please', 'danger', 'pain', 'namaste', 'donate', 'Mother', 'father', 'Nice_to_meet_you', 'Learning'])
-    colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245), (32, 117, 16), (64, 117, 16), (88, 117, 16), (60, 117, 16),(60, 117, 16),(60, 117, 16),(60, 117, 16),(60, 117, 16)]
+    actions = np.array(
+        ['thanks', 'help', 'please', 'danger', 'pain', 'namaste', 'donate', 'Mother', 'father', 'Nice_to_meet_you',
+         'Learning'])
+    colors = [(245, 117, 16), (117, 245, 16), (16, 117, 245), (32, 117, 16), (64, 117, 16), (88, 117, 16),
+              (60, 117, 16), (60, 117, 16), (60, 117, 16), (60, 117, 16), (60, 117, 16)]
 
     # Your original selected_face_landmarks
     selected_face_landmarks = [1, 33, 263, 196, 362, 451, 118, 365, 300, 247, 172, 443, 164, 329, 433, 428, 295, 99,
